@@ -1,19 +1,22 @@
 console.log("hello from Typescript");
 
-
 //---------------------------------------initialize----------------------------------------------------
 import { Client, Message, VoiceState, TextChannel } from "discord.js";
+import {CronJob} from "cron";
 const client = new Client();
 const token = ''
 client.login(token);
 
 var CalData :{[key:string]:number} = {}//calcurated result into this variable
-var DefinedMessage :{[key:string]:string} = {}//データを保持するためにファイルに出力して読み取る関数が必要
+var DefinedMessage :{[key:string]:string} = {}
 interface UserAndPoint{
 	name: string
 	point:number
 }
-
+const cronJob = new CronJob('0 0 6 * * *', async () => {
+	CalData = {}
+	console.log("test")
+}).start();
 /*---------------------------------------what we want-----------------------------------------------
 ほぼ完全にクライアントから見て自身のディスコードが表示されないようなシステム
 
@@ -26,9 +29,10 @@ init -> 使用用途によって2種類のパターンを用意する
 
 
 //------------------------------------------------------------------------------------------------*/
+
 client.on('ready', () => {
 	if(client.user != null){
-	    client.user.setPresence({ activity: { name: 'Ver 0.8.1 updated!' } });
+	    client.user.setPresence({ activity: { name: 'Ver 0.9.0 updated!' } });
 	    console.log('bot ready!');
 	}
 });
@@ -38,7 +42,6 @@ async function InitCalChannel(channel :TextChannel):Promise<void>{
 	CalData[channel.id] = 0
 	return
 }
-
 
 async function InitAllChannels(message :Message):Promise<void>{
 	//initialize all channels
@@ -327,8 +330,7 @@ async function Initialize_HideUser(message :Message):Promise<void>{
                 type: 'category',
                 permissionOverwrites: [{
                     id: rol.id,
-                    allow: ["CONNECT", "SPEAK"],
-                    deny: ["VIEW_CHANNEL"],
+                    allow: ["CONNECT", "SPEAK", "VIEW_CHANNEL"]
                 }, ],
             })
 			if(message.member == null)
@@ -514,11 +516,16 @@ async function AllDivver(message :Message, num:number[]):Promise<number>{
 	return temp
 }
 
-
 async function RandomMapValorant(message :Message):Promise<string>{
-	const map = ["Bind", "Haven", "Split", "Ascent","Icebox"]
-	return map[ann(0, 4)]
+	const map = ["Bind", "Haven", "Split", "Ascent","Icebox", "bleeze"]
+	return map[ann(0, 5)]
 }
+
+async function RandomMapValorantAll(message :Message):Promise<string[]>{
+	const map = ["Bind", "Haven", "Split", "Ascent","Icebox", "bleeze"]
+	return arrayShuffle(map)
+}
+
 async function EmitMessage(message :Message, content :string):Promise<void>{
 	//Send message to all channnels
 	//-----------------------------------------------実装途中-------------------------------------------------------------
@@ -541,7 +548,6 @@ async function SendMessage(message :Message, to :string, content :string):Promis
 	})
 	return
 }
-
 
 function ann(min :number, max :number) :number{
     min = Math.ceil(min);
@@ -684,28 +690,32 @@ const ShuffleTeam = async function(message :Message, argv :string[]):Promise<str
             return "Catch NaN beween 1 - 99"
         }
         var i = 0
-        randomUser(num_member, []).then(random_array =>{
+        await randomUser(num_member, [])
+        .then(random_array =>{
       	if((message.guild == null) || (message.member == null)){return "void";}
-        message.guild.members.cache.forEach(member => {
-                //message.reply(member.user.name)//debug
-        if (member.user.bot != true) {
-            let ignore :any = member.guild.channels.cache.find(r => r.name == "観戦部屋");
-            if(String(ignore) != member.voice.channelID){
-                message.reply(random_array[i])
-                if((message.guild == null) || (message.member == null)){return "void";}
-                let VCchannel = message.guild.channels.cache.find(channel => (channel.name == String((random_array[i] % num_team) + 1)) && (channel.type === "voice"))
-                if(VCchannel != null)
-                	try{
-                		member.voice.setChannel(VCchannel)
-                	i++;
-                }catch{console.log("not connect")}
-                }
-            }
-        });
-    });
-    message.reply("シャッフルが終了しました")
+	        message.guild.members.cache.map(member => {
+	                //message.reply(member.user.name)//debug
+	                //console.log(member.voice)
+	        if (member.user.bot != true) {
+	            let ignore :any = member.guild.channels.cache.find(r => r.name == "観戦部屋");
+	            if(String(ignore) != member.voice.channelID && member.voice.sessionID != null){
+	                message.reply(`${random_array[i]} 処理対象 -> ${member.user.username}`)
+	                if((message.guild == null) || (message.member == null)){return "void";}
+	                let VCchannel =  message.guild.channels.cache.find(channel => (channel.name == String((random_array[i] % num_team) + 1)) && (channel.type === "voice"))
+	                if(VCchannel != null && VCchannel != ignore)
+	                	try{
+	                		member.voice.setChannel(VCchannel)
+	                		console.log(member.user.username)
+	                		i++;
+	               		}catch{console.log("not connect")}
+	                }
+	            }
+	        });
+    	});
+    await message.reply("シャッフルが終了しました")
     return "void"
 }
+
 function arrayShuffle(array :string[]):string[] {
   for(let i = (array.length - 1); 0 < i; i--){
     let r = Math.floor(Math.random() * (i + 1));
@@ -715,8 +725,6 @@ function arrayShuffle(array :string[]):string[] {
   }
   return array;
 }
-
-
 
 const RankedShuffleTeam = async function(message :Message, argv :string[]):Promise<string>{
 	/*
@@ -737,9 +745,13 @@ const RankedShuffleTeam = async function(message :Message, argv :string[]):Promi
         return "Catch NaN beween 1 - 99"
     }
     //await MoveUsers(message, ["",message.channel.name])
-    const cName = await SerchChannelName(message, String(message.member.voice.channelID))
-    console.log(cName)
-    await MoveUsers(message, ["",cName])
+    //const cName = await SerchChannelName(message, String(message.member.voice.channelID))
+    //console.log(cName)
+    //await MoveUsers(message, ["","1"])
+    await ShuffleTeam(message, argv)
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    //await MoveUsers(message, ["",cName])
+   // await new Promise(resolve => setTimeout(resolve, 2000))
     /*
     let TeamIdArray = []//この中にチャンネルのIDが入っている
     for(var i =0;i<num_ranks;i++){
@@ -750,7 +762,7 @@ const RankedShuffleTeam = async function(message :Message, argv :string[]):Promi
     	})
     }*/
     //let UsersRank = JSON.stringify({"0":[], "1":[], "2":[], "3":[], "4":[], "5":[], "6" :[], "7":[]})
-    var UsersRank :{[key:number]:string[]} = {}
+    let UsersRank :{[key:number]:string[]} = {}
     const reg = /[0-3]/
     const tp = async function(message :Message):Promise<void> {
     	if(message.guild == null){
@@ -785,48 +797,53 @@ const RankedShuffleTeam = async function(message :Message, argv :string[]):Promi
 	 	return
 	 }
 	 await tp(message)
+	 .then(async function():Promise<void>{
     //await new Promise(resolve => setTimeout(resolve, 20000))
- 	var count = 0
- 	let temp :{[key:number]:string[]} = {}
- 	for(var i=0;i<8;i++){
- 		if(typeof UsersRank[i] == "undefined"){
- 			continue
- 		}else{
- 			temp[i] = await arrayShuffle(UsersRank[i])
- 			//console.log(arrayShuffle(["3", "5", "7", "9", "11"]))
- 		}
- 	}
- 	for(var i=0;i<num_ranks;i++){
- 		console.log(UsersRank[i])
- 		 if(typeof UsersRank[i] == "undefined"){
- 			continue
- 		}
- 		for(var j=0;j<UsersRank[i].length;j++){
- 			let VCchannel = await message.guild.channels.cache.find(channel => (channel.name == String((count % num_team) + 1) ) && (channel.type === "voice"))		
- 					if((message.guild == null) || (message.member == null)){return "void";}
- 					message.guild.members.cache.forEach(x => {
- 						if(VCchannel != null){
-	 						if(x.id == temp[i][j]){
-	 							message.channel.send(`ランク${i}, 名前は${x.user.username} 移動先   -> ${VCchannel.name}`)
-		               		 if(VCchannel != null){
-			                	try{
-			                		x.voice.setChannel(VCchannel)
-			                		count++;
-			               		}catch{console.log('not connect user -> ${x.id}')}
-			 				}
-			 			}
-			 		}
- 				})
- 			//count++
- 		}
- 	}
+	 	var count = 0
+	 	let temp :{[key:number]:string[]} = {}
+	 	for(var i=0;i<8;i++){
+	 		if(typeof UsersRank[i] == "undefined"){
+	 			continue
+	 		}else{
+	 			temp[i] = await arrayShuffle(UsersRank[i])
+	 			//console.log(arrayShuffle(["3", "5", "7", "9", "11"]))
+	 		}
+	 	}
+	 	for(var i=0;i<num_ranks;i++){
+	 		console.log(UsersRank[i])
+	 		 if(typeof UsersRank[i] == "undefined"){
+	 			continue
+	 		}
+	 		for(var j=0;j<UsersRank[i].length;j++){
+	 			if((message.guild == null) || (message.member == null)){return;}
+	 			let VCchannel = await message.guild.channels.cache.find(channel => (channel.name == String((count % num_team) + 1) ) && (channel.type === "voice"))		
+	 					if((message.guild == null) || (message.member == null)){return;}
+	 					message.guild.members.cache.forEach(x => {
+	 						if(VCchannel != null){
+		 						if(x.id == temp[i][j]){
+		 							message.channel.send(`ランク${i}, 名前は${x.user.username} 移動先   -> ${VCchannel.name}`)
+			               		 if(VCchannel != null){
+				                	try{
+				                		x.voice.setChannel(VCchannel)
+				                		count++;
+				               		}catch{
+				               			console.log('not connect user -> ${x.id}')
+				               		}
+				 				}
+				 			}
+				 		}
+	 				})
+	 			//count++
+	 		}
+	 	}
+ 	})
  	return "void"
 }
 
 async function HELP(message :Message):Promise<void>{
 	var tex = "$add もしくは $a -> ボイスチャンネルに接続しているユーザーすべてを配信部屋に集めたのちguest権限を与えます。\n"
 	tex += "$add -m {集めたいチャンネル名} -> 権限を付与し、集合させます\n"
-	tex += "$t ->ユーザーを集めずにボイスチャンネルに接続しているユーザーすべてにguest権限を与えます"
+	tex += "$t ->ユーザーを集めずにボイスチャンネルに接続しているユーザーすべてにguest権限を与えます\n"
 	tex += "$sh {人数} {分けたいチーム数} -> 観戦部屋以外に入っているメンバーをシャッフルすることができます。\n"
 	tex += "$team {人数} {分けたいチーム数} -> 観戦部屋、ランク役職(0~7の数字)が付いていないユーザーを除いたメンバーをランクベースでシャッフルします。\n"
 	tex += "$send {送りたい部屋} {送りたいメッセージ} -> テキストチャンネルにメッセージを送ることができます。\n"
@@ -994,10 +1011,22 @@ const OwnerCommand = async function(message :Message, argv :string[]) :Promise<s
     		}
     	}	
     }
+    /*
     if(argv[0] =="mapVal"){
     	RandomMapValorant(message).then(r =>{
     		message.reply(r)
     	})
+    }*/
+    if(argv[0] =="mapVal"){
+    	if(argv[1] =="-a"){
+    	RandomMapValorantAll(message).then(r =>{
+    		message.reply(r)
+    		})
+    	}else{
+    		RandomMapValorant(message).then(r =>{
+    		message.reply(r)
+    		})
+    	}
     }
     if(argv[0] == "init"){
     	//init だけの時はオプションを説明する
