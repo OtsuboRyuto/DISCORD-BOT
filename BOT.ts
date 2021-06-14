@@ -21,7 +21,7 @@ const cronJob = new CronJob('0 0 6 * * *', async () => {//午前6時にメモリ
 
 client.on('ready', () => {
 	if(client.user != null){
-	    client.user.setPresence({ activity: { name: 'Ver 0.10.0 updated!' } });
+	    client.user.setPresence({ activity: { name: 'Ver 1.0.0 updated!' } });
 	    console.log('bot ready!');
 	}
 	client.channels.cache.forEach(x => {
